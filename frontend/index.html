@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Study Buddy</title>
+<meta name="theme-color" content="#f5f7f3">
+<title>Study Buddy — A calmer way to study</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%231c664f'/%3E%3Cpath d='M18 18h16c7 0 12 4 12 11s-5 11-12 11h-5v7h-7V25h-4zm11 7v9h5c3 0 5-2 5-4s-2-5-5-5z' fill='white'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="vendor/katex/katex.min.css">
 <link rel="stylesheet" href="styles.css">
 <script defer src="vendor/marked/marked.min.js"></script>
@@ -12,43 +14,85 @@
 <script defer src="vendor/katex/auto-render.min.js"></script>
 </head>
 <body>
-<aside id="side" aria-label="Settings, memory and documents">
-  <div class="row" style="justify-content:space-between;align-items:center"><div><h1>Study Buddy</h1><p class="sub">Your notes and files stay on this server.</p></div><button class="ghost" id="close" type="button" aria-label="Close settings">Close</button></div>
+<aside id="side" aria-label="Study Buddy sidebar">
+  <div class="sidebar-brand">
+    <a class="brand-lockup" href="/" aria-label="Study Buddy home">
+      <span class="brand-mark" aria-hidden="true">S</span>
+      <span><strong>Study Buddy</strong><small>Make learning feel lighter</small></span>
+    </a>
+    <button class="icon-button sidebar-close" id="close" type="button" aria-label="Close settings" title="Close sidebar">×</button>
+  </div>
 
-  <section><h2>How should I help?</h2>
-    <div class="modes" id="modes"></div>
-    <div class="row" style="margin-top:8px">
-      <label style="flex:1">Provider<select id="provider" aria-label="AI provider"><option value="">Default</option></select></label>
-      <label style="flex:1">Model<select id="model" aria-label="AI model"><option value="">Default</option></select></label>
+  <details class="sidebar-section" open>
+    <summary><span class="section-icon" aria-hidden="true">✦</span><span>Study mode</span></summary>
+    <div class="section-content">
+      <p class="section-hint">Choose how your study buddy helps.</p>
+      <div class="modes" id="modes"></div>
     </div>
-    <label style="display:block;margin-top:8px">Subject<select id="subject" aria-label="Retrieval subject"><option value="">All subjects</option></select></label>
-  </section>
+  </details>
 
-  <section><h2>Your chats</h2>
-    <div id="chats"><p class="sub">No chats yet.</p></div></section>
+  <details class="sidebar-section" open>
+    <summary><span class="section-icon" aria-hidden="true">◷</span><span>Chats</span></summary>
+    <div class="section-content"><div id="chats"><p class="sub">No chats yet.</p></div></div>
+  </details>
 
-  <section><h2>What I remember</h2>
-    <div id="mem"></div>
-    <div class="row"><input id="memIn" placeholder="e.g. I’m in Class 12, studying for JEE" aria-label="Add a memory"><button class="btn" id="memAdd" type="button">Add</button></div></section>
+  <details class="sidebar-section" open>
+    <summary><span class="section-icon" aria-hidden="true">♡</span><span>Memory</span></summary>
+    <div class="section-content">
+      <div id="mem"></div>
+      <div class="row memory-add">
+        <input id="memIn" placeholder="A fact worth remembering…" aria-label="Add a memory">
+        <button class="btn icon-label" id="memAdd" type="button">Add</button>
+      </div>
+    </div>
+  </details>
 
-  <section><h2>Your documents</h2>
-    <div id="docs"></div>
-    <label style="display:block;margin-top:6px">Document subject<input id="docSubject" placeholder="e.g. Physics" aria-label="Document subject"></label>
-    <input type="file" id="file" accept=".pdf,.docx,.txt,.md,.csv" multiple aria-label="Add documents">
-    <p class="sub" id="fileMsg">PDF, DOCX, TXT, MD or CSV. I search them when you ask a question.</p></section>
+  <details class="sidebar-section" open>
+    <summary><span class="section-icon" aria-hidden="true">▤</span><span>Documents</span></summary>
+    <div class="section-content">
+      <div id="docs"></div>
+      <label class="field-label" for="docSubject">Subject <span>optional</span></label>
+      <input id="docSubject" placeholder="e.g. Biology" aria-label="Document subject">
+      <label class="dropzone" id="dropzone" for="file">
+        <input type="file" id="file" accept=".pdf,.docx,.txt,.md,.csv" multiple aria-label="Add documents">
+        <span class="upload-mark" aria-hidden="true">↑</span>
+        <strong>Drop files here or browse</strong>
+        <span>PDF, DOCX, TXT, MD or CSV</span>
+      </label>
+      <p class="sub upload-status" id="fileMsg" role="status" aria-live="polite">I’ll search your notes when you ask a question.</p>
+    </div>
+  </details>
 
-  <section>
-    <button class="ghost" id="export" type="button">Export chat as Markdown</button>
-    <button class="ghost" id="clear" type="button">Start a new chat</button></section>
+  <details class="sidebar-section settings-section" open>
+    <summary><span class="section-icon" aria-hidden="true">⚙</span><span>Settings</span></summary>
+    <div class="section-content settings-fields">
+      <label for="provider">AI provider<select id="provider" aria-label="AI provider"><option value="">Default</option></select></label>
+      <label for="model">Model<select id="model" aria-label="AI model"><option value="">Default</option></select></label>
+      <label for="subject">Search in<select id="subject" aria-label="Retrieval subject"><option value="">All subjects</option></select></label>
+      <button class="ghost full-width" id="export" type="button">Export chat as Markdown</button>
+      <button class="ghost full-width" id="clear" type="button">Start a new chat</button>
+    </div>
+  </details>
 </aside>
 
+<button id="backdrop" class="backdrop" type="button" aria-label="Close settings" hidden></button>
+
 <main>
-  <header><strong>Study Buddy</strong><button class="ghost" id="open" type="button" aria-label="Open memory, chats and files">Memory &amp; files</button></header>
+  <header class="topbar">
+    <button class="icon-button mobile-open" id="open" type="button" aria-label="Open memory, chats and files" aria-expanded="false" title="Open sidebar">☰</button>
+    <a class="topbar-brand" href="/" aria-label="Study Buddy home">Study Buddy <span>·</span> Study space</a>
+    <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch to dark mode" title="Switch to dark mode"><span aria-hidden="true">◐</span><span class="theme-label">Dark</span></button>
+  </header>
   <div id="log" role="log" aria-live="polite" aria-relevant="additions"></div>
-  <form id="f">
-    <textarea id="q" rows="1" placeholder="Ask a question, or say “remember …”" aria-label="Your message"></textarea>
-    <button class="ghost" id="stop" type="button" hidden>Stop</button>
-    <button class="btn" id="send" type="submit">Send</button>
+  <form id="f" class="composer">
+    <div class="composer-box">
+      <textarea id="q" rows="1" placeholder="Ask a question, or say “remember …”" aria-label="Your message"></textarea>
+      <div class="composer-actions">
+        <span class="composer-hint">Enter to send <span>·</span> Shift + Enter for a new line</span>
+        <button class="ghost stop-button" id="stop" type="button" hidden>Stop</button>
+        <button class="btn send-button" id="send" type="submit"><span>Send</span><span class="send-icon" aria-hidden="true">↑</span></button>
+      </div>
+    </div>
   </form>
 </main>
 

@@ -1,6 +1,29 @@
 const $=id=>document.getElementById(id);
 const MODES={chat:["Just chat","Answer clearly and helpfully."],explain:["Explain simply","Explain like a patient tutor: start with the core idea in plain words, then an everyday example, then a short recap. Avoid jargon or define it."],quiz:["Quiz me","Act as a quiz coach: ask ONE question at a time, wait for the answer, then give feedback and the next question. Adjust difficulty to how I do."],summary:["Summarize","Give concise study notes: key points as short bullets, important terms in bold, and a one-line takeaway."]};
 const S={mem:[],docs:[],msgs:[],mode:"explain",conversationId:null,conversations:[],controller:null,provider:"",model:"",subject:"",subjects:[]};
+let themePreference="system";
+try{
+  const savedTheme=localStorage.getItem("study-buddy-theme");
+  if(savedTheme==="light"||savedTheme==="dark")themePreference=savedTheme;
+}catch(error){console.warn("Could not read the saved theme preference.",error)}
+function applyTheme(){
+  const root=document.documentElement;
+  if(themePreference==="system")delete root.dataset.theme;
+  else root.dataset.theme=themePreference;
+  const dark=themePreference==="dark"||(themePreference==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const label=dark?"Light":"Dark";
+  $("themeToggle").setAttribute("aria-label","Switch to "+label.toLowerCase()+" mode");
+  $("themeToggle").title="Switch to "+label.toLowerCase()+" mode";
+  $("themeToggle").querySelector(".theme-label").textContent=label;
+}
+applyTheme();
+ $("themeToggle").onclick=()=>{
+  const dark=themePreference==="dark"||(themePreference==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);
+  themePreference=dark?"light":"dark";
+  try{localStorage.setItem("study-buddy-theme",themePreference)}
+  catch(error){console.warn("Could not save the theme preference.",error)}
+  applyTheme();
+};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 // Math must be protected from the markdown parser (it would eat _ and * inside formulas).
 const MATH=/\$\$[\s\S]+?\$\$|\\\[[\s\S]+?\\\]|\\\([\s\S]+?\\\)|(?<![\\$\w])\$(?=\S)[^$\n]*?\S\$(?![\w$])/g;
@@ -49,8 +72,9 @@ function renderSide(){
   $("mem").innerHTML=S.mem.length?"":'<p class="sub">Nothing yet. Add facts about you and your courses.</p>';
   S.mem.forEach(memory=>{
     const item=document.createElement("div");item.className="note";
-    item.innerHTML="<span></span><button type='button' class='memory-edit' aria-label='Edit this memory'>Edit</button><button type='button' class='memory-pin' aria-label='Pin this memory'>Pin</button><button type='button' aria-label='Forget this memory'>✕</button>";
-    item.firstChild.textContent=memory.text;
+    item.classList.toggle("pinned",Boolean(memory.pinned));
+    item.innerHTML="<span class='memory-text'></span><div class='memory-actions'><button type='button' class='memory-edit icon-button' aria-label='Edit this memory' title='Edit memory'>✎</button><button type='button' class='memory-pin icon-button' aria-label='Pin this memory' title='Pin memory'>☆</button><button type='button' class='memory-delete icon-button' aria-label='Forget this memory' title='Forget memory'>×</button></div>";
+    item.querySelector(".memory-text").textContent=memory.text;
     item.querySelector(".memory-edit").onclick=async()=>{
       const text=prompt("Edit memory:",memory.text);
       if(text===null||!text.trim())return;
@@ -60,14 +84,16 @@ function renderSide(){
       }catch(error){setMessage($("fileMsg"),error.message,true)}
     };
     const pin=item.querySelector(".memory-pin");
-    pin.textContent=memory.pinned?"Unpin":"Pin";
+    pin.textContent=memory.pinned?"★":"☆";
+    pin.setAttribute("aria-label",memory.pinned?"Unpin this memory":"Pin this memory");
+    pin.setAttribute("aria-pressed",String(Boolean(memory.pinned)));
     pin.onclick=async()=>{
       try{
         const updated=await api("/api/memory/"+memory.id,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({pinned:!memory.pinned})});
         memory.pinned=updated.pinned;renderSide();
       }catch(error){setMessage($("fileMsg"),error.message,true)}
     };
-    item.lastChild.onclick=async()=>{
+    item.querySelector(".memory-delete").onclick=async()=>{
       try{await api("/api/memory/"+memory.id,{method:"DELETE"});S.mem=S.mem.filter(entry=>entry.id!==memory.id);renderSide()}
       catch(error){setMessage($("fileMsg"),error.message,true)}
     };
@@ -76,8 +102,12 @@ function renderSide(){
   $("docs").innerHTML=S.docs.length?"":'<p class="sub">No documents yet.</p>';
   S.docs.forEach(documentInfo=>{
     const item=document.createElement("div");item.className="doc";
-    item.innerHTML="<span></span><button type='button' class='flashcards'>Flashcards</button><button type='button' class='summarize'>Summarize</button><button type='button' aria-label='Remove document'>Remove</button>";
-    item.firstChild.textContent=documentInfo.name+(documentInfo.subject? " · "+documentInfo.subject:"")+" ("+documentInfo.chunks+" parts)";
+    item.innerHTML="<div class='doc-main'><div class='doc-title-row'><span class='doc-name'></span><span class='subject-tag doc-subject'></span></div><span class='doc-detail'></span></div><div class='doc-actions'><button type='button' class='flashcards' aria-label='Make flashcards from "+esc(documentInfo.name)+"'>Cards</button><button type='button' class='summarize' aria-label='Summarize "+esc(documentInfo.name)+"'>Summary</button><button type='button' class='doc-remove icon-button' aria-label='Remove "+esc(documentInfo.name)+"' title='Remove document'>×</button></div>";
+    item.querySelector(".doc-name").textContent=documentInfo.name;
+    const subjectTag=item.querySelector(".doc-subject");
+    subjectTag.textContent=documentInfo.subject||"";
+    subjectTag.hidden=!documentInfo.subject;
+    item.querySelector(".doc-detail").textContent=documentInfo.chunks+" searchable parts";
     item.querySelector(".flashcards").onclick=async()=>{
       setMessage($("fileMsg"),"Making flashcards from "+documentInfo.name+"…");
       try{
@@ -88,7 +118,7 @@ function renderSide(){
           {role:"bot",text:cards.reply,src:cards.sources}
         ];
         S.conversations=await api("/api/conversations");renderSide();renderLog();
-        $("side").classList.remove("open");
+        closeSidebar();
         setMessage($("fileMsg"),"Flashcards are ready.");
       }catch(error){setMessage($("fileMsg"),error.message,true)}
     };
@@ -102,11 +132,11 @@ function renderSide(){
           {role:"bot",text:summary.reply,src:summary.sources}
         ];
         S.conversations=await api("/api/conversations");renderSide();renderLog();
-        $("side").classList.remove("open");
+        closeSidebar();
         setMessage($("fileMsg"),"Summary is ready.");
       }catch(error){setMessage($("fileMsg"),error.message,true)}
     };
-    item.lastChild.onclick=async()=>{
+    item.querySelector(".doc-remove").onclick=async()=>{
       try{await api("/api/documents/"+documentInfo.id,{method:"DELETE"});S.docs=S.docs.filter(doc=>doc.id!==documentInfo.id);renderSide()}
       catch(error){setMessage($("fileMsg"),error.message,true)}
     };
@@ -184,6 +214,17 @@ $("provider").onchange=()=>{
 };
 $("model").onchange=()=>{S.model=$("model").value};
 $("subject").onchange=()=>{S.subject=$("subject").value};
+function openSidebar(){
+  $("side").classList.add("open");
+  $("backdrop").hidden=false;
+  $("open").setAttribute("aria-expanded","true");
+  $("close").focus();
+}
+function closeSidebar(){
+  $("side").classList.remove("open");
+  $("backdrop").hidden=true;
+  $("open").setAttribute("aria-expanded","false");
+}
 async function openConversation(id){
   try{
     const chat=await api("/api/conversations/"+id);
@@ -191,13 +232,13 @@ async function openConversation(id){
       role:message.role,text:message.text,src:message.sources||[]
     }));
     renderSide();renderLog();
-    $("side").classList.remove("open");
+    closeSidebar();
     $("q").focus();
   }catch(error){setMessage($("fileMsg"),error.message,true)}
 }
 async function newConversation(){
   S.conversationId=null;S.msgs=[];S.mode="explain";
-  renderSide();renderLog();$("side").classList.remove("open");$("q").focus();
+  renderSide();renderLog();closeSidebar();$("q").focus();
 }
 $("memAdd").onclick=async()=>{
   const value=$("memIn").value.trim();if(!value)return;
@@ -206,13 +247,15 @@ $("memAdd").onclick=async()=>{
 };
 $("memIn").onkeydown=event=>{if(event.key==="Enter"){event.preventDefault();$("memAdd").click()}};
 $("clear").onclick=newConversation;
-$("open").onclick=()=>$("side").classList.add("open");
-$("close").onclick=()=>$("side").classList.remove("open");
+$("open").onclick=openSidebar;
+$("close").onclick=closeSidebar;
+$("backdrop").onclick=closeSidebar;
+document.addEventListener("keydown",event=>{if(event.key==="Escape")closeSidebar()});
 
 /* documents */
-$("file").onchange=async event=>{
+async function uploadFiles(files){
   const message=$("fileMsg");message.className="sub";
-  for(const file of event.target.files){
+  for(const file of files){
     setMessage(message,"Uploading "+file.name+"…");
     try{
       const body=new FormData();body.append("file",file);
@@ -222,23 +265,82 @@ $("file").onchange=async event=>{
       setMessage(message,"Added "+file.name+".");
     }catch(error){setMessage(message,error.message,true)}
   }
+}
+$("file").onchange=async event=>{
+  await uploadFiles(Array.from(event.target.files));
   event.target.value="";
 };
+const dropzone=$("dropzone");
+["dragenter","dragover"].forEach(name=>dropzone.addEventListener(name,event=>{
+  event.preventDefault();
+  dropzone.classList.add("dragging");
+}));
+["dragleave","drop"].forEach(name=>dropzone.addEventListener(name,event=>{
+  event.preventDefault();
+  dropzone.classList.remove("dragging");
+}));
+dropzone.addEventListener("drop",event=>uploadFiles(Array.from(event.dataTransfer.files)));
+
+async function copyText(text,button){
+  const label=button.textContent;
+  try{
+    if(!navigator.clipboard?.writeText)throw new Error("Clipboard API is unavailable.");
+    await navigator.clipboard.writeText(text);
+    button.textContent="Copied";
+    window.setTimeout(()=>{button.textContent=label},1400);
+  }catch(error){
+    console.error("Could not copy text to the clipboard.",error);
+    button.textContent="Copy unavailable";
+    window.setTimeout(()=>{button.textContent=label},1800);
+  }
+}
+function addCodeCopyButtons(element){
+  element.querySelectorAll("pre").forEach(block=>{
+    if(block.querySelector(".copy-code"))return;
+    block.classList.add("code-block");
+    const button=document.createElement("button");
+    button.type="button";button.className="copy-code";button.textContent="Copy";
+    button.setAttribute("aria-label","Copy code block");
+    button.onclick=()=>copyText(block.querySelector("code")?.textContent||block.textContent,button);
+    block.append(button);
+  });
+}
+function resizeComposer(){
+  const input=$("q");
+  input.style.height="auto";
+  input.style.height=Math.min(input.scrollHeight,180)+"px";
+}
 
 /* chat */
 function renderLog(){
   const log=$("log");log.innerHTML="";
   if(!S.msgs.length){
-    log.innerHTML='<div class="empty"><b>What are we studying today?</b><p>Ask anything, add your notes or textbook PDFs on the left, and tell me things to remember about you.</p></div>';
+    log.innerHTML='<div class="welcome"><div class="welcome-mark" aria-hidden="true">✦</div><p class="eyebrow">YOUR STUDY SPACE</p><h1>What are we learning today?</h1><p class="welcome-copy">Bring a question, a tricky idea, or a page of notes. We’ll work through it together.</p><div class="quick-actions" aria-label="Quick study actions"><button class="quick-action" type="button" data-mode="explain" data-prompt="Explain a topic simply: "><span class="quick-icon explain-icon" aria-hidden="true">✦</span><span><strong>Explain simply</strong><small>Make a tricky idea click</small></span><span class="quick-arrow" aria-hidden="true">↗</span></button><button class="quick-action" type="button" data-mode="quiz" data-prompt="Quiz me on: "><span class="quick-icon quiz-icon" aria-hidden="true">?</span><span><strong>Quiz me</strong><small>Practice one question at a time</small></span><span class="quick-arrow" aria-hidden="true">↗</span></button><button class="quick-action" type="button" data-mode="summary" data-prompt="Summarize: "><span class="quick-icon summary-icon" aria-hidden="true">≡</span><span><strong>Summarize</strong><small>Turn notes into key points</small></span><span class="quick-arrow" aria-hidden="true">↗</span></button><button class="quick-action" type="button" data-mode="quiz" data-prompt="Make flashcards from: "><span class="quick-icon cards-icon" aria-hidden="true">▤</span><span><strong>Make flashcards</strong><small>Build a quick revision set</small></span><span class="quick-arrow" aria-hidden="true">↗</span></button></div></div>';
+    log.querySelectorAll(".quick-action").forEach(button=>button.onclick=()=>{
+      S.mode=button.dataset.mode;
+      $("q").value=button.dataset.prompt;
+      renderSide();
+      resizeComposer();
+      $("q").focus();
+      $("q").setSelectionRange($("q").value.length,$("q").value.length);
+    });
     return;
   }
   S.msgs.forEach(message=>{
     const item=document.createElement("div");item.className="msg "+(message.role==="user"?"user":"bot");
     if(message.role==="user")item.textContent=message.text;
-    else{item.innerHTML=md(message.text);typeset(item)}
+    else{item.innerHTML=md(message.text);typeset(item);addCodeCopyButtons(item)}
     if(message.role!=="user"&&!message.err){
       const meta=document.createElement("div");meta.className="meta";
-      if(message.src&&message.src.length)meta.append("From: "+message.src.join(", "));
+      if(message.src&&message.src.length){
+        const citations=document.createElement("div");citations.className="source-chips";
+        message.src.forEach(source=>{const chip=document.createElement("span");chip.className="source-chip";chip.textContent=source;citations.append(chip)});
+        meta.append(citations);
+      }
+      const copy=document.createElement("button");copy.type="button";copy.className="meta-action";
+      copy.textContent="Copy answer";copy.setAttribute("aria-label","Copy Study Buddy's answer");
+      copy.onclick=()=>copyText(message.text,copy);
+      meta.append(copy);
       const save=document.createElement("button");save.type="button";save.textContent="Save to memory";
       save.onclick=async()=>{
         const value=prompt("Save this to memory:",message.text.slice(0,200));
@@ -256,7 +358,7 @@ function renderLog(){
 function showSkeleton(){
   const item=document.createElement("div");item.className="msg bot skeleton";item.id="pending";
   item.setAttribute("role","status");item.setAttribute("aria-label","Study Buddy is thinking");
-  item.innerHTML="<span></span><span></span><span></span>";$("log").append(item);
+  item.innerHTML="<span class='typing-label'>Thinking it through<span class='typing-dots' aria-hidden='true'><i></i><i></i><i></i></span></span><span class='skeleton-line'></span><span class='skeleton-line'></span>";$("log").append(item);
 }
 const parseSseData=line=>{
   try{return JSON.parse(line.slice(6))}
@@ -270,6 +372,7 @@ function appendStreamText(text){
   }
   pending.removeAttribute("role");pending.removeAttribute("aria-label");pending.classList.remove("skeleton");
   pending.innerHTML=md(text);
+  addCodeCopyButtons(pending);
   typeset(pending);
   $("log").scrollTop=$("log").scrollHeight;
 }
@@ -331,6 +434,7 @@ async function ask(){
 }
 $("f").onsubmit=event=>{event.preventDefault();ask()};
 $("stop").onclick=()=>S.controller?.abort();
+$("q").addEventListener("input",resizeComposer);
 $("q").onkeydown=event=>{
   if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();$("f").requestSubmit()}
 };
