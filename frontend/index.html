@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Study Buddy</title>
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<link rel="stylesheet" href="styles.css">
+<script defer src="vendor/marked/marked.min.js"></script>
+<script defer src="vendor/dompurify/purify.min.js"></script>
+<script defer src="vendor/katex/katex.min.js"></script>
+<script defer src="vendor/katex/auto-render.min.js"></script>
+</head>
+<body>
+<aside id="side" aria-label="Settings, memory and documents">
+  <div class="row" style="justify-content:space-between;align-items:center"><div><h1>Study Buddy</h1><p class="sub">Your notes and files stay on this server.</p></div><button class="ghost" id="close" type="button" aria-label="Close settings">Close</button></div>
+
+  <section><h2>How should I help?</h2>
+    <div class="modes" id="modes"></div>
+    <div class="row" style="margin-top:8px">
+      <label style="flex:1">Provider<select id="provider" aria-label="AI provider"><option value="">Default</option></select></label>
+      <label style="flex:1">Model<select id="model" aria-label="AI model"><option value="">Default</option></select></label>
+    </div>
+    <label style="display:block;margin-top:8px">Subject<select id="subject" aria-label="Retrieval subject"><option value="">All subjects</option></select></label>
+  </section>
+
+  <section><h2>Your chats</h2>
+    <div id="chats"><p class="sub">No chats yet.</p></div></section>
+
+  <section><h2>What I remember</h2>
+    <div id="mem"></div>
+    <div class="row"><input id="memIn" placeholder="e.g. I’m in Class 12, studying for JEE" aria-label="Add a memory"><button class="btn" id="memAdd" type="button">Add</button></div></section>
+
+  <section><h2>Your documents</h2>
+    <div id="docs"></div>
+    <label style="display:block;margin-top:6px">Document subject<input id="docSubject" placeholder="e.g. Physics" aria-label="Document subject"></label>
+    <input type="file" id="file" accept=".pdf,.docx,.txt,.md,.csv" multiple aria-label="Add documents">
+    <p class="sub" id="fileMsg">PDF, DOCX, TXT, MD or CSV. I search them when you ask a question.</p></section>
+
+  <section>
+    <button class="ghost" id="export" type="button">Export chat as Markdown</button>
+    <button class="ghost" id="clear" type="button">Start a new chat</button></section>
+</aside>
+
+<main>
+  <header><strong>Study Buddy</strong><button class="ghost" id="open" type="button" aria-label="Open memory, chats and files">Memory &amp; files</button></header>
+  <div id="log" role="log" aria-live="polite" aria-relevant="additions"></div>
+  <form id="f">
+    <textarea id="q" rows="1" placeholder="Ask a question, or say “remember …”" aria-label="Your message"></textarea>
+    <button class="ghost" id="stop" type="button" hidden>Stop</button>
+    <button class="btn" id="send" type="submit">Send</button>
+  </form>
+</main>
+
+<script defer src="app.js"></script>
+</body>
+</html>
