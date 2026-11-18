@@ -1,5 +1,6 @@
 const express = require("express");
 const path = require("node:path");
+const { createHash, timingSafeEqual } = require("node:crypto");
 const { rateLimit } = require("express-rate-limit");
 const { createChatRouter } = require("./routes/chat");
 const { createMemoryRouter } = require("./routes/memory");
@@ -11,7 +12,45 @@ function createApp({ db, llm, embeddingLlm, env = process.env, frontendPath = pa
   const app = express();
   const embeddingAdapter = embeddingLlm || llm;
   app.disable("x-powered-by");
+  if (env.TRUST_PROXY === "1") app.set("trust proxy", 1);
+  app.get("/healthz", (req, res) => res.status(200).json({ status: "ok" }));
+  if (env.APP_PASSWORD) {
+    const expectedUsername = createHash("sha256").update("study-buddy").digest();
+    const expectedPassword = createHash("sha256").update(env.APP_PASSWORD).digest();
+    app.use(rateLimit({
+      windowMs: 15 * 60 * 1000,
+      limit: 50,
+      skipSuccessfulRequests: true,
+      standardHeaders: "draft-7",
+      legacyHeaders: false,
+      message: "Too many authentication attempts. Please wait and try again."
+    }));
+    app.use((req, res, next) => {
+      const authorization = req.get("authorization") || "";
+      const match = authorization.match(/^Basic\s+([A-Za-z0-9+/]+={0,2})$/i);
+      if (match) {
+        const credentials = Buffer.from(match[1], "base64").toString("utf8");
+        const separator = credentials.indexOf(":");
+        if (separator >= 0) {
+          const username = createHash("sha256").update(credentials.slice(0, separator)).digest();
+          const password = createHash("sha256").update(credentials.slice(separator + 1)).digest();
+          if (timingSafeEqual(username, expectedUsername) && timingSafeEqual(password, expectedPassword)) {
+            return next();
+          }
+        }
+      }
+      res.set("WWW-Authenticate", 'Basic realm="Study Buddy", charset="UTF-8"');
+      return res.status(401).type("text").send("Authentication required.");
+    });
+  }
   app.use(express.json({ limit: "256kb" }));
+  app.use("/api", rateLimit({
+    windowMs: 60 * 1000,
+    limit: 100,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    message: { error: "Too many requests. Please wait a moment and try again." }
+  }));
   app.use("/api/chat", rateLimit({
     windowMs: 60 * 1000,
     limit: 20,

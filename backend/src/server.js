@@ -1,13 +1,19 @@
 require("dotenv").config({ path: require("node:path").resolve(__dirname, "../../.env") });
 const path = require("node:path");
+const fs = require("node:fs");
 const { createDatabase } = require("./db/database");
 const { createLlmAdapter, createEmbeddingAdapter } = require("./services/llm");
 const { createApp } = require("./app");
 
 const projectRoot = path.resolve(__dirname, "../..");
+if (process.env.NODE_ENV === "production"
+  && (!process.env.APP_PASSWORD || process.env.APP_PASSWORD.length < 16)) {
+  throw new Error("Set APP_PASSWORD to a password with at least 16 characters before starting in production.");
+}
 const databasePath = process.env.DB_PATH
   ? path.resolve(projectRoot, process.env.DB_PATH)
   : path.resolve(projectRoot, "backend/study-buddy.db");
+fs.mkdirSync(path.dirname(databasePath), { recursive: true });
 const db = createDatabase(databasePath);
 const llm = createLlmAdapter();
 const embeddingLlm = createEmbeddingAdapter();
@@ -23,7 +29,7 @@ if (!providerKey) {
 }
 const app = createApp({ db, llm, embeddingLlm });
 const port = Number(process.env.PORT) || 3000;
-const host = process.env.HOST || "127.0.0.1";
+const host = process.env.NODE_ENV === "production" ? "0.0.0.0" : (process.env.HOST || "127.0.0.1");
 
 const server = app.listen(port, host, () => {
   console.log(`Study Buddy is running at http://${host}:${port}`);

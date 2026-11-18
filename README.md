@@ -61,6 +61,21 @@ Open http://127.0.0.1:3000. The `run.sh` alternative creates `.env`, installs de
 
 Groq, OpenRouter, and other OpenAI-compatible chat services use `OPENAI_BASE_URL`. Groq does not provide the document embedding endpoint used by this app; use Gemini or local Ollama for embeddings.
 
+## Deploy to Render
+
+Create a **Web Service** from this repository and use these settings:
+
+- **Root Directory:** leave blank (repository root; the frontend is a sibling of `backend/`)
+- **Build Command:** `npm ci --prefix backend`
+- **Start Command:** `npm --prefix backend start`
+- **Health Check Path:** `/healthz`
+- **Environment:** `NODE_VERSION=22.23.5`, `NODE_ENV=production`, `TRUST_PROXY=1`, and a random `APP_PASSWORD` of at least 16 characters. The browser will ask for HTTP Basic Auth credentials: username `study-buddy`, password the value of `APP_PASSWORD`.
+- Configure the selected chat provider's key and model, and `EMBEDDING_PROVIDER` plus its key. For the sample defaults, set `LLM_PROVIDER=openai`, `OPENAI_API_KEY`, `OPENAI_BASE_URL=https://api.groq.com/openai/v1`, `OPENAI_MODEL=openai/gpt-oss-120b`, `EMBEDDING_PROVIDER=gemini`, and `GEMINI_API_KEY`.
+
+Render supplies `PORT`; do not set it manually. Leave `HOST` unset on Render so production binds to `0.0.0.0`. Locally, `.env` keeps `HOST=127.0.0.1`. `DB_PATH` is optional; without it the app uses `backend/study-buddy.db`.
+
+**Render describes Free as unsuitable for production. It has an ephemeral filesystem and no persistent disks.** SQLite conversations, memories, uploaded document text, and embeddings can disappear on spin-down, restart, redeploy, or instance replacement. Free instances spin down after 15 minutes idle and can take about a minute to wake. This deployment is a single shared workspace, not a multi-user service. Keep backups off the service if its data matters. Persistent SQLite storage requires a hosting option with a persistent disk; no database or paid service is provisioned by this project.
+
 ## Troubleshooting
 
 - **404 model not found:** use the exact model ID in the provider catalog and make sure `OPENAI_BASE_URL` points to that provider. Retired model IDs stop working.

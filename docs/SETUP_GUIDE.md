@@ -96,7 +96,37 @@ Stop the server before copying or deleting database files. Reset by deleting `st
 
 The server binds to `127.0.0.1` by default. Do not expose it to the internet without authentication and HTTPS.
 
-## 7. Troubleshooting
+## 7. Deploying on Render Free
+
+Create a Render **Web Service** connected to this repository. Use:
+
+- **Root Directory:** leave blank (repository root; `frontend/` must be available beside `backend/`).
+- **Build Command:** `npm ci --prefix backend`
+- **Start Command:** `npm --prefix backend start`
+- **Health Check Path:** `/healthz`
+
+Set these environment variables in Render:
+
+```text
+NODE_VERSION=22.23.5
+NODE_ENV=production
+TRUST_PROXY=1
+APP_PASSWORD=<random password of at least 16 characters>
+LLM_PROVIDER=openai
+OPENAI_API_KEY=<your Groq key>
+OPENAI_BASE_URL=https://api.groq.com/openai/v1
+OPENAI_MODEL=openai/gpt-oss-120b
+EMBEDDING_PROVIDER=gemini
+GEMINI_API_KEY=<your Gemini key>
+```
+
+Set other model variables only when needed; the application has defaults. Render assigns `PORT` automatically, so don't set it. Leave `HOST` unset; production binds to `0.0.0.0`. The local `.env` value `HOST=127.0.0.1` remains suitable for development. The browser prompts for HTTP Basic Auth; use username `study-buddy` and the `APP_PASSWORD` value. `/healthz` is deliberately public for Render's health check.
+
+The app's frontend and backend are in sibling folders, so setting Root Directory to `backend` will break static frontend delivery. The default database path is `backend/study-buddy.db`; you can set `DB_PATH` to an absolute path if your hosting plan provides a mounted disk.
+
+**Important:** Render says Free services are not for production. They have ephemeral storage and don't support persistent disks. The SQLite database includes conversations, messages, memories, uploaded document text, and embeddings; it is lost on spin-down, restart, redeploy, or replacement. Free services spin down after 15 minutes idle and can take about a minute to start again. Back up important data outside the service. This is one shared database behind one shared password, not separate student accounts. This guide does not provision paid storage or migrate the database.
+
+## 8. Troubleshooting
 
 - **Node not found:** install Node.js 22.5+, reopen the terminal, and verify `node --version`.
 - **npm install or better-sqlite3 failure:** Node 22.5+ supports the built-in SQLite fallback. Delete `backend/node_modules` and rerun `npm install`; on Windows use VS Build Tools if native installation is required.
@@ -111,7 +141,7 @@ The server binds to `127.0.0.1` by default. Do not expose it to the internet wit
 - **Blank page:** hard-refresh; confirm the server is at 127.0.0.1 and inspect browser console/network errors.
 - **PowerShell execution restrictions:** use `run.bat`, Command Prompt, or set an appropriate process-scope execution policy only if your administrator permits it.
 
-## 8. Project folders
+## 9. Project folders
 
 - `backend/src/server.js`: process entry point
 - `backend/src/app.js`: Express routes and static frontend
@@ -123,6 +153,6 @@ The server binds to `127.0.0.1` by default. Do not expose it to the internet wit
 - `frontend/`: browser UI and local vendor assets
 - `docs/`: API and setup documentation
 
-## 9. Adding a provider
+## 10. Adding a provider
 
 Create a module in `backend/src/services/providers/` implementing `generate`, `generateStream`, `embed`, and `embedMany`. Register it in `backend/src/services/llm.js`, add its environment variables, and expose non-secret model metadata through `GET /api/providers`.
